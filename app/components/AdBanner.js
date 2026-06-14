@@ -1,14 +1,10 @@
-// The ads. On purpose, this is a plain Server Component with NO interactivity
-// and NO knowledge of whether the user has paid. It always renders.
-//
-// Making these obey a "the user went premium" flag is YOUR job (see README.md).
-// You'll need the browser's localStorage to remember the purchase, and
-// localStorage only exists in the browser... so think about where this code
-// is allowed to run.
-//
-// It renders TWO banners so the page feels genuinely cluttered:
-//   1. a scrolling marquee strip across the top of the content
-//   2. a floating, blinking ad card pinned to the bottom-right corner
+'use client';
+
+import { useState, useEffect } from 'react';
+
+// The ads. Now a Client Component that checks localStorage for the premium flag.
+// To avoid hydration mismatch (the server can't read localStorage), we render
+// the ads on the initial client mount to match server output, then update.
 
 const MARQUEE_ADS = [
   "🔥 MEGA DEAL: buy 1 cable, get 0 free!",
@@ -19,6 +15,44 @@ const MARQUEE_ADS = [
 ];
 
 export default function AdBanner() {
+  const [isPremium, setIsPremium] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    
+    const checkPremium = () => {
+      setIsPremium(localStorage.getItem('isPremium') === 'true');
+    };
+    
+    // Check initially on mount
+    checkPremium();
+    
+    // Listen for changes in the same window (custom event) and other tabs (storage event)
+    window.addEventListener('premium-change', checkPremium);
+    window.addEventListener('storage', checkPremium);
+    
+    return () => {
+      window.removeEventListener('premium-change', checkPremium);
+      window.removeEventListener('storage', checkPremium);
+    };
+  }, []);
+
+  // Hydration safety: render ads during initial server/client pass to match markup
+  if (!mounted) {
+    return <AdLayout />;
+  }
+
+  // If premium, do not render any ads
+  if (isPremium) {
+    return null;
+  }
+
+  return <AdLayout />;
+}
+
+// Inner helper component to keep markup clean
+function AdLayout() {
   return (
     <>
       {/* 1) Top marquee strip */}
@@ -51,3 +85,4 @@ export default function AdBanner() {
     </>
   );
 }
+
